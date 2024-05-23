@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="chat.css" />
+    <title>chatApp</title>
+
+</head>
+
+<body>
+    <h1>今日の目標を入力しよう！</h1>
+    <!-- 入力場所を作成しよう -->
+    <!-- <p><img id="prof"></p> ここプロフィール画像表示させたい！％％％％％％％％％％％％％％％％％％％ -->
+    <li>ログイン者：<span id="uname"></span></li>
+    <li><img src="" id="prof"></li>
+
+    <form>
+        <fieldset>
+            <legend>入力画面</legend>
+            <div>
+                名前: <input type="text" id="name">
+            </div>
+            <div>
+                目標: <input type="text" id="text">
+            </div>
+
+            <input type="file" id="example" multiple>
+
+            <!-- 👇ここにプレビュー画像を追加する -->
+            <div id="preview"></div>
+            <!-- ここまで -->
+
+            <div class="chat_btn">
+                <button type="button" id="send">送信</button>
+                <a href="http://127.0.0.1:5500/timer.html" target="">
+                    <button type="button" id="back">タイマーに戻る</button>
+                </a>
+            </div>
+
+
+        </fieldset>
+    </form>
+
+    <!-- データ出力場所 -->
+
+    <ul id="output">
+        <!-- <div id="output" style="overflow: auto; height: 300px;"></div> -->
+    </ul>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+
+
+
+    <!-- 以下にfirebaseのコードを貼り付けよう -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+
+        //ここから自分で追加するーーーーーーーーーーーーーーーーーーーーー
+        import {
+            getFirestore,
+            collection,//←パソコンでいうフォルダてきなやつ
+            addDoc,//←firebaseのフォルダに保存させる時に使う
+            serverTimestamp,//←時間日時を表示させるためにGoogleが用意したもの
+            onSnapshot,//←データベース上でデータの変更が発生したタイミングで{}内の処理を実行するやつ
+            query,
+            orderBy,
+
+        } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+        // ↑これをを書いておくことでdbに対してデータの追加や取得ができるようになる。(※バージョンは合わせる10.11.1のとこ)
+        //ここまでーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
+
+        import {
+            getStorage, ref, uploadString, getDownloadURL, uploadBytes
+        } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-storage.js";
+
+        import {
+            getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+
+
+
+        // 日時をいい感じの形式にする関数
+        function convertTimestampToDatetime(timestamp) {
+            const _d = timestamp ? new Date(timestamp * 1000) : new Date();
+            const Y = _d.getFullYear();
+            const m = (_d.getMonth() + 1).toString().padStart(2, '0');;
+            const d = _d.getDate().toString().padStart(2, '0');
+            const H = _d.getHours().toString().padStart(2, '0');
+            const i = _d.getMinutes().toString().padStart(2, '0');
+            const s = _d.getSeconds().toString().padStart(2, '0');
+            return `${Y}/${m}/${d} ${H}:${i}:${s}`;
+        }
+
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+
+            // ################################################
+            //←ここの情報一番重要だから、git addする前に消す！！！
+            apiKey: "#####################################",
+            // #################################################
+            authDomain: "chat-app-test-9d30d.firebaseapp.com",
+            projectId: "chat-app-test-9d30d",
+            storageBucket: "chat-app-test-9d30d.appspot.com",
+            messagingSenderId: "779333419143",
+            appId: "1:779333419143:web:d3b854ebb27f2b21d23822"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+
+        // ここから自分で追加するーーーーーーーーーーーーーーーー
+        const db = getFirestore(app);
+        // ↑これをを書いておくことでdbに対してデータの追加や取得ができるようになる。
+
+        // chatGTPの指示で追加↓///////////////////////////////
+        const storage = getStorage(app);
+        ////////////////////////////////////////////////////
+
+        // ###############################
+        // GoogleAuth用
+        const provider = new GoogleAuthProvider();
+        provider.addScope("https://www.googleapis.com/auth/contacts.readonly");
+        const auth = getAuth();
+        // ################################
+
+        // ###############################
+        // loginしてれば処理する
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                const uid = user.uid;
+                // ユーザー情報を取得
+                if (user !== null) {
+                    user.providerData.forEach((profile) => {
+                        // login情報取得
+                        $("#uname").text(profile.displayName);
+                        $("#prof").attr("scr", profile.photoURL);
+                        console.log("Sign-in provider: " + profile.providerId);
+                        console.log("Provider-specific UID: " + profile.uid);
+                        console.log("Email: " + profile.email);
+                        console.log("Photo URL: " + profile.photoURL);
+
+                    });
+                    $("#status").fadeOut(500);
+                }
+            }
+
+            else {
+                _redirect(); //ユーザーでなければログイン画面にリダイレクトする
+            }
+        });
+
+
+        // ログイン画面にリダイレクト################################
+        function _redirect() {
+            location.href = "login_rich.html";  //←ログイン画面のURLに変更
+        }
+
+
+
+        // ↓functionの前、asyncないとawaitが赤なみせんなる！  
+        $("#send").on("click", async function () {
+
+
+            // ここchatGTPに聞いてやったとこ/////////////////////////
+            // 送信ボタンがクリックされた時の処理
+
+            const files = fileInput.files;
+
+            // 画像が選択されているかどうかを確認
+            if (files.length > 0) {
+                // 画像が選択されている場合の処理
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const storageRef = ref(storage, 'images/' + file.name);
+                    await uploadBytes(storageRef, file);
+                    const imageURL = await getDownloadURL(storageRef);
+                    const post = {
+                        name: $('#name').val(),
+                        text: $('#text').val(),
+                        time: serverTimestamp(),
+                        url: imageURL
+                    };
+                    console.log(post);
+                    addDoc(collection(db, 'chat'), post);
+                    $('#text').val('');
+                }
+            } else {
+                // 画像が選択されていない場合の処理
+                const post = {
+                    name: $('#name').val(),
+                    text: $('#text').val(),
+                    time: serverTimestamp()
+                };
+                console.log(post);
+                addDoc(collection(db, 'chat'), post);
+                $('#text').val('');
+            }
+        });
+
+
+
+
+
+
+        // ここまで///////////////////////////////////////////////
+
+
+
+
+        // 🔽 データ取得条件の指定（今回は時間の新しい順に並び替えて取得）
+        const q = query(collection(db, "chat"), orderBy("time", "desc"));
+
+
+        // データ取得処理↓databaseの内容に変更があった時は[onSnapshot]を使う！！！！！{}内が実行される
+        onSnapshot(collection(db, "chat"), (q, (querySnapshot) => {
+            console.log(querySnapshot.docs);
+
+
+            // ---------ここから講義資料６.７ーーーーー↑onSnapshotの処理内に追加する！！
+            // 必要なデータのみ抽出した「オブジェクト形式の配列」に変換
+            const documents = [];//空の配列を準備
+            querySnapshot.docs.forEach(function (doc) {
+                const document = {
+                    id: doc.id,
+                    data: doc.data(),
+                };
+                documents.push(document);
+            });
+
+
+
+            // 配列から画面表示用のタグを作成
+
+
+            //${document.data.time}のtimeのところを変更して、日時をいい感じに変更する。
+            //${convertTimestampToDatetime(document.data.seconds)}のdataの後ろ、「seconds」か「Timestamp」にするといい感じになる。
+            console.log(documents);
+            const htmlElements = [];
+            documents.forEach(function (document) {
+                htmlElements.push(`
+                <li id="${document.id}">
+
+                  <p>${document.data.name
+                    } at ${convertTimestampToDatetime(document.data.time)}</p>
+                  <p>${document.data.text}</p>
+
+                <p><img src="${document.data.url}"></p>
+                </li>
+              `);
+            });
+
+
+            //${document.data.time}</p>
+            //<p<${convertTimestampToDatetime(document.data.time.seconds)}</P>
+
+            //<p><img src="${document.data.url}"></p>
+
+
+            $("#output").html(htmlElements);//%%%%%%%%%%%%%%%%%%画像表示ここらへんかな？
+
+
+        }));
+        //↑ここまでonSnapshotの処理ーーーーーーーーーーーーーーーーー
+
+
+
+        // 画像が選択された時にプレビューを表示させる処理:参考資料（https://catnose.me/learning/html/input-file#google_vignette)
+        // <input>でファイルが選択されたときの処理
+        const fileInput = document.getElementById('example');
+        const handleFileSelect = () => {
+            const files = fileInput.files;
+            for (let i = 0; i < files.length; i++) {
+                previewFile(files[i]);
+                // ーーーーーーーーーーーーーーーーーーーーー
+                // previewFile(file); // プレビューの表示
+                // uploadImage(file); // 画像のアップロード処理
+                // ーーーーーーーーーーーーーーーーーーーーーーーーー
+            }
+        }
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // 画像のアップロード処理
+        const uploadImage = async (file) => {
+            try {
+                // Storageに画像をアップロード
+                const storageRef = ref(storage, 'images/' + file.name);
+                await uploadString(storageRef, file);
+
+                // アップロードした画像のURLを取得
+                const imageURL = await getDownloadURL(storageRef);
+                console.log(imageURL);
+
+                // Firestoreに画像のURLを保存
+                await addDoc(collection(db, 'chat'), { url: imageURL }); //ここ機能してない?→解決！
+                //dbの後ろ'images'から'chat'に変更！5/8
+
+                console.log('Image uploaded successfully!');
+            } catch (error) {
+                console.error('Error uploading image:', error);
+            }
+        };
+
+
+
+        function previewFile(file) {
+            // プレビュー画像を追加する要素
+            const preview = document.getElementById('preview');
+
+            // FileReaderオブジェクトを作成
+            const reader = new FileReader();
+
+            // ファイルが読み込まれたときに実行する
+            reader.onload = function (e) {
+                const imageUrl = e.target.result; // 画像のURLはevent.target.resultで呼び出せる
+                const img = document.createElement("img"); // img要素を作成
+                img.src = imageUrl; // 画像のURLをimg要素にセット
+
+                // ％％％％％％％％％％％％％％％％％％％％％％％％％％％
+                // 画像の表示サイズを制御する
+                img.width = 100; // 例：幅を100pxに設定
+                //  ％％％％％％％％％％％％％％％％％％％％％％％％
+
+
+                preview.appendChild(img); // #previewの中に追加
+            }
+
+
+            // いざファイルを読み込む
+            reader.readAsDataURL(file);
+        };
+
+
+
+    </script>
+
+
+</body>
+
+</html>

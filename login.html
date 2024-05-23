@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="login.css" />
+    <title>firebase_login</title>
+
+</head>
+
+<body>
+
+    <div class="hello">
+        <h1>今日も全集中！</h1>
+    </div>
+
+    <div class="login_form"></div>
+    <div class="login_wrap">
+        <button id="login">ログイン</button>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script type="module">
+
+        import { initializeApp }
+            from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+            from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+
+
+        const firebaseConfig = {
+
+            apiKey: "#############################",//←ここの情報一番重要だから、git addする前に消す！！！
+
+            authDomain: "chat-app-test-9d30d.firebaseapp.com",
+            projectId: "chat-app-test-9d30d",
+            storageBucket: "chat-app-test-9d30d.appspot.com",
+            messagingSenderId: "779333419143",
+            appId: "1:779333419143:web:d3b854ebb27f2b21d23822"
+        };
+
+
+        const app = initializeApp(firebaseConfig);
+
+        const provider = new GoogleAuthProvider();
+        provider.addScope("https://www.googleapis.com/auth/contacts.readonly");
+        const auth = getAuth();
+
+        $("#login").on("click", function () {
+            signInWithPopup(auth, provider).then((result) => {
+                location.href = "timer.html";  //←ログイン画面から遷移先のファイルに変更！
+            }).catch((error) => {
+                const errorCode = error.code;
+                const errorMessage = error.message;
+                const credential = GoogleAuthProvider.credentialFromError(error);
+            });
+        });
+
+    </script>
+
+
+</body>
+
+</html>

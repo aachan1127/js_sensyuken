@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css" />
+
+    <title>タイマー</title>
+</head>
+
+<body>
+    <!-- jquery読み込み -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+
+
+
+    <!-- ログイン者情報 -->
+    <!-- <p><img id="prof"></p> ここプロフィール画像表示させたい！％％％％％％％％％％％％％％％％％％％ -->
+    <li>ログイン者：<span id="uname"></span></li>
+    <li><img src="" id="prof"></li>
+
+
+    <!-- 表示画面 -->
+    <a href="http://127.0.0.1:5500/chat.html" target="">
+        <button id="chat_btn">今日の目標を入力</button>
+    </a>
+
+    <!-- 送信ボタン -->
+    <!-- <form action="" method="post"></form>
+    <a href="http://127.0.0.1:5500/thankyou.html" target="_blank">
+        <div class="button_wrap">
+            <div class="button">
+                <button type="submit">送信する</button>
+    </a>
+    </form>
+    </div>
+    </div> -->
+
+
+
+
+
+
+    <div class="time_wrap">
+        <h1 id="time">おすすめの時間配分 作業:25分 休憩:5分 </h1>
+    </div>
+
+    <div class="how">
+        <div>
+            <p>何分作業しますか？</p>
+            <input type="text" id="sec">分
+        </div>
+
+
+
+        <!-- <button id="pause">一時停止</button> -->
+        <div>
+            <p>休憩時間は？</p>
+            <input type="text" id="break_time">分
+        </div>
+    </div>
+
+    <div class="how">
+        <button id="start">スタート</button>
+        <button id="break_btn">休憩する</button>
+    </div>
+
+
+    <!-- サウンド -->
+    <audio src="yukkuri.mp3" id="sound_01"></audio>
+    <audio src="hayame.mp3" id="sound_02"></audio>
+
+
+
+
+    <div class="ctrl">
+        <div class="progressCircle">
+            <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="50" class="base" />
+                <circle cx="50" cy="50" r="25" class="circle" />
+            </svg>
+        </div>
+        <div class="progressBarInfo"><span class="minute"></span>:<span class="second"></span></div>
+    </div>
+
+
+
+    <!-- ################  google 認証  ################# -->
+    <script type="module">
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+        import {
+            getFirestore,
+            collection,//←パソコンでいうフォルダてきなやつ
+            addDoc,//←firebaseのフォルダに保存させる時に使う
+            serverTimestamp,//←時間日時を表示させるためにGoogleが用意したもの
+            onSnapshot,//←データベース上でデータの変更が発生したタイミングで{}内の処理を実行するやつ
+            query,
+            orderBy,
+
+        } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-firestore.js";
+        // ↑これをを書いておくことでdbに対してデータの追加や取得ができるようになる。(※バージョンは合わせる10.11.1のとこ)
+        import {
+            getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-auth.js";
+
+        const firebaseConfig = {
+
+            // ################################################
+            //←ここの情報一番重要だから、git addする前に消す！！！
+            apiKey: "#####################################",
+            // #################################################
+            authDomain: "chat-app-test-9d30d.firebaseapp.com",
+            projectId: "chat-app-test-9d30d",
+            storageBucket: "chat-app-test-9d30d.appspot.com",
+            messagingSenderId: "779333419143",
+            appId: "1:779333419143:web:d3b854ebb27f2b21d23822"
+        };
+
+
+
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+
+        // ここから自分で追加するーーーーーーーーーーーーーーーー
+        const db = getFirestore(app);
+        // ↑これをを書いておくことでdbに対してデータの追加や取得ができるようになる。
+
+
+        // ###############################
+        // GoogleAuth用
+        const provider = new GoogleAuthProvider();
+        provider.addScope("https://www.googleapis.com/auth/contacts.readonly");
+        const auth = getAuth();
+        // ################################
+
+
+        // ###############################
+        // loginしてれば処理する
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                const uid = user.uid;
+                // ユーザー情報を取得
+                if (user !== null) {
+                    user.providerData.forEach((profile) => {
+                        // login情報取得
+                        $("#uname").text(profile.displayName);
+                        $("#prof").attr("scr", profile.photoURL);
+                        console.log("Sign-in provider: " + profile.providerId);
+                        console.log("Provider-specific UID: " + profile.uid);
+                        console.log("Email: " + profile.email);
+                        console.log("Photo URL: " + profile.photoURL);
+
+                    });
+                    $("#status").fadeOut(500);
+                }
+            }
+
+            else {
+                _redirect(); //ユーザーでなければログイン画面にリダイレクトする
+            }
+        });
+
+
+        // ログイン画面にリダイレクト################################
+        function _redirect() {
+            location.href = "login_rich.html";  //←ログイン画面のURLに変更
+        }
+
+
+        // ###############  ここからタイマー  #######################
+
+
+
+        // 残り時間の変数
+        let countTime;
+        let timerId; // timerId をグローバルスコープで宣言
+
+
+
+        // ドキュメントの読み込み後にjQueryを使用する
+        $(document).ready(function () {
+
+
+            // スタートボタンが押されたら、タイマーを開始させる。
+            $('#start').click(function () {
+
+
+                function timer() {
+                    // 入力された時間を取得する(かける60をして、値を分に変換する)
+                    const sec = $("#sec").val() * 60;
+                    console.log(sec);
+
+                    //何分タイマーにするかをここで定義
+                    var setTime = sec;
+
+                    // タイマーの経過秒数を初期化
+                    var second = 0;
+
+                    // 円形の進捗バーにアニメーションを適用するために、.pieクラスにpieアニメーションを追加
+                    $('.circle').removeClass('break_time_pie').addClass('pie');
+                    //↑removeClass メソッドを使用して既存のクラスを削除してからaddClassしないと色が変わらなかった
+                    // $('.circle').addClass('pie');
+
+
+                    // アニメーションの時間を設定秒数の2倍に設定
+                    $('.circle').css({ 'animation': 'pie ' + setTime * 2 + 's linear' })
+
+                    // タイマーのインターバル処理を開始
+                    var timerId = setInterval(function () {
+                        // 1秒ごとに経過秒数を更新
+                        second += 1;
+
+
+
+                        //もし、タイマーの時間が0秒以下になったら
+                        if (second >= setTime) {
+
+                            //音を出す
+                            sound_01.play();
+
+
+                            //タイマー止める
+                            clearInterval(timerId);
+
+                        }
+
+                        // 残り時間を計算して表示
+                        countTime = setTime - second;
+                        $('.minute').text(countTime % 3600 / 60 | 0);
+                        $('.second').text(countTime % 60);
+
+                        // 1秒ごとにタイマーを更新
+                    }, 1000);
+                }
+
+
+                // スタートボタンがクリックされた時にtimer()関数を呼び出す
+                timer();
+
+            });
+
+
+
+
+
+
+            // 休憩ボタンが押されたら、タイマーを開始させる。
+            $('#break_btn').click(function () {
+
+                function timer() {
+                    // // 入力された時間を取得する(かける60をして、値を分に変換する)
+                    const break_time = $("#break_time").val() * 60;
+                    console.log(break_time);
+
+                    //何分タイマーにするかをここで定義
+                    var setTime = break_time;
+
+                    // タイマーの経過秒数を初期化
+                    var second = 0;
+
+                    // 円形の進捗バーにアニメーションを適用するために、.pieクラスにpieアニメーションを追加
+                    $('.circle').removeClass('pie').addClass('break_time_pie');
+                    //↑removeClass メソッドを使用して既存のクラスを削除してからaddClassしないと色が変わらなかった
+                    // $('.circle').addClass('break_time_pie');
+
+
+                    // アニメーションの時間を設定秒数の2倍に設定
+                    $('.circle').css({ 'animation': 'break_time_pie ' + setTime * 2 + 's linear' })
+
+                    // タイマーのインターバル処理を開始
+                    var timerId = setInterval(function () {
+                        // 1秒ごとに経過秒数を更新
+                        second += 1;
+
+                        //もし、タイマーの時間が0秒以下になったら
+                        if (second >= setTime) {
+
+                            //音を出す
+                            sound_02.play();
+
+                            //タイマー止める
+                            clearInterval(timerId);
+
+                        }
+
+                        // 残り時間を計算して表示
+                        countTime = setTime - second;
+                        $('.minute').text(countTime % 3600 / 60 | 0);
+                        $('.second').text(countTime % 60);
+
+                        // 1秒ごとにタイマーを更新
+                    }, 1000);
+                }
+
+                // スタートボタンがクリックされた時にtimer()関数を呼び出す
+                timer();
+
+            });
+
+
+
+
+            // 一時停止ボタンが押されたら、タイマーを一時停止する
+            $('#pause').click(function () {
+                if (isTimerRunning) {
+                    // タイマーが動作中の場合のみタイマーを停止する
+                    clearInterval(timerId);
+                } else {
+                    // タイマーが停止中の場合は再開する
+                    timer(); // タイマー再開
+                }
+                // isTimerRunning を反転させる
+                isTimerRunning = !isTimerRunning;
+            });
+
+
+        });
+
+
+
+
+    </script>
+
+</body>
+
+</html>
+
+
+
+
+
+
+
+
+<!-- <script>
+    // 画面：タイマー秒数、スタートボタン、何秒たったか表示
+    // スタートクリックイベント
+    const time = document.querySelector("#time");
+    const sec = document.querySelector("#sec");
+    const start = document.querySelector("#start");
+    const sound = document.querySelector("#sound");
+    let count = 0;  //Countする変数=0
+    const s = 1000;  //タイマー秒数
+
+
+    start.onclick = function () {
+        //↓clearIntervalでIDを使うためにconst set_idを用意
+        const set_id = setInterval(function () {
+            count++;
+            time.innerHTML = count;
+            if (count == sec.value) {
+                sound.play();
+                clearInterval(set_id); //時間になったらタイマー止める
+            }
+        }, s);  //１秒づつ回転させる
+    } -->
